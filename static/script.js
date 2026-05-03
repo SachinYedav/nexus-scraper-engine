@@ -258,7 +258,10 @@ async function extractLinks(event, detailUrl, source, id) {
 
             // render sorted links to UI
             for (const [quality, finalUrl] of linksArray) {
-                linksDiv.innerHTML += `<a href="${finalUrl}" class="dl-btn" target="_blank" onclick="event.stopPropagation()">📥 Download ${quality.toUpperCase()}</a>`;
+            // Handle different formats of finalUrl (string or object with url/link/href)
+            let actualLink = typeof finalUrl === 'string' ? finalUrl : (finalUrl.url || finalUrl.link || finalUrl.href || Object.values(finalUrl)[0]);
+
+            linksDiv.innerHTML += `<a href="${actualLink}" class="dl-btn" target="_blank" onclick="event.stopPropagation()">📥 Download ${quality.toUpperCase()}</a>`;
             }
 
             // check if it's a series by looking for keywords in the title (season, episode, s01, s1, etc.)
