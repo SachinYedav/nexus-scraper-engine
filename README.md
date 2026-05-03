@@ -1,3 +1,11 @@
+---
+title: Nexus API Engine
+emoji: 🚀
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+---
 # 🎬 Nexus Scraper Engine API
 
 ![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
