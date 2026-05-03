@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Nexus Engine is an advanced, asynchronous web scraping API built for deep-searching and bypassing modern protections.">
+    <meta name="keywords" content="Nexus Engine, Web Scraper, FastAPI, Playwright, Python, API">
+    <meta name="author" content="Sachin Yadav">
+    <meta name="theme-color" content="#111827">
+
+    <title>Nexus Engine | Advanced Web Scraper</title>
+
+    <link rel="icon" type="image/png" href="/static/favicon.png">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="container">
+
+    <!--TOP RIGHT SETTINGS BUTTON AND MODAL -->
+    <div class="header-controls">
+        <button id="settingsBtn" class="settings-btn top-right-btn" title="Engine Preferences">⚙️</button>
+
+        <div id="settingsDropdown" class="settings-modal top-right-modal hidden">
+            <div class="modal-header">
+                <h4>⚙️ Engine Preferences</h4>
+            </div>
+            <div class="modal-body">
+                <div class="setting-item">
+                    <label>Max Results per Source: <span id="limitDisplay" class="highlight">4</span></label>
+                    <input type="range" id="limitSlider" min="1" max="12" value="4"
+                        oninput="document.getElementById('limitDisplay').innerText = this.value">
+                </div>
+                <hr class="divider">
+                <div class="setting-item">
+                    <label class="highlight" style="margin-bottom: 10px; display: block;">Active Networks:</label>
+                    <label class="checkbox-container"><input type="checkbox" class="source-cb" value="9xflix" checked>
+                        9xflix</label>
+                    <label class="checkbox-container"><input type="checkbox" class="source-cb" value="hdhub4u" checked>
+                        HDHub4u</label>
+                    <label class="checkbox-container"><input type="checkbox" class="source-cb" value="filmyfly" checked>
+                        FilmyFly</label>
+                    <label class="checkbox-container"><input type="checkbox" class="source-cb" value="filmyparda" checked>
+                        Filmyparda</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Module Navigation Chips -->
+    <div class="nav-chips-container">
+        <h1 class="main-title">Nexus Engine</h1>
+        <div class="chips-wrapper">
+            <button class="chip active" data-module="movies">🎬 Movies</button>
+            <button class="chip" data-module="series">📺 Web Series</button>
+            <button class="chip" data-module="anime">⛩️ Anime</button>
+            <button class="chip" data-module="software">💻 Software</button>
+        </div>
+        <!-- Inline Status Message -->
+        <p id="moduleMsg" class="module-msg hidden">🚀 This module is under construction. Dedicated engine coming soon!</p>
+    </div>
+
+    <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Enter target movie (e.g., Kalki)...">
+        <button id="searchBtn">Search</button>
+    </div>
+
+    <div id="loadingText" class="loading-text"><div class="spinner"></div> Connecting to the Networks...</div>
+
+    <div class="results-grid" id="resultsGrid">
+
+        <!-- Initial Standby State -->
+        <div class="empty-state" id="standbyState">
+            <div class="empty-state-icon">📡</div>
+            <h2>System Standby</h2>
+            <p>Enter a movie title above to initiate a parallel network scan.</p>
+        </div>
+    </div>
+</div>
+
+<!--Footer & Disclaimer -->
+<footer class="site-footer">
+    <div class="footer-links">
+        <a href="#">Report Bug</a>
+        <a href="#">API Docs</a>
+        <a href="#">DMCA</a>
+        <a href="#">GitHub Repo</a>
+    </div>
+    <p class="disclaimer">
+        <strong>Disclaimer:</strong> Nexus Engine is a strictly educational web scraper. We do not host, upload, or
+        manage any files, media, or torrents on our servers. All links are crawled from third-party public websites.
+    </p>
+</footer>
+
+<!-- Episodes Modal -->
+<div id="episodesModal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>📺 Select Episode</h3>
+            <span class="close" id="closeEpisodesModal">&times;</span>
+        </div>
+        <div class="modal-body">
+            <!-- Loader -->
+            <div id="episodesLoader" class="loader-container hidden">
+                <div class="spinner-large"></div>
+                <p class="loader-text">Fetching Episodes securely...</p>
+            </div>
+
+            <!-- Episodes List Container -->
+            <div id="episodesContainer" class="episodes-list"></div>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="/static/script.js"></script>
+</body>
+</html>
