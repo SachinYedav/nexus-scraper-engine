@@ -786,7 +786,6 @@ async def extract_filmyfly(detail_url: str):
     final_links = {}
 
     browser = await get_browser()
-    # 🛡️ THE FIX: Fake Windows PC Identity (User-Agent) to bypass Cloudflare
     context = await browser.new_context(
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
@@ -795,9 +794,12 @@ async def extract_filmyfly(detail_url: str):
     await page.route("**/*", block_ads_and_popups)
 
     try:
+        # ==========================================
+        # LAYER 2: Master Download Button
+        # ==========================================
         print("⏳ [Track 1] Loading Main Detail Page...")
         await page.goto(detail_url, timeout=40000, wait_until="domcontentloaded")
-        await asyncio.sleep(3) # ⏳ Thoda extra time diya slow server ke liye
+        await asyncio.sleep(3)
 
         all_links = await page.query_selector_all('a')
         linkmake_url = None
@@ -816,12 +818,15 @@ async def extract_filmyfly(detail_url: str):
                     break
 
         if not linkmake_url:
-            print("❌ [Track 2] FAIL: Master Download button not found on HF!")
+            print("❌ [Track 2] FAIL: Master Download button not found!")
             return final_links
 
+        # ==========================================
+        # LAYER 2.5: Link Protector & MediaFire Bypass
+        # ==========================================
         print("⏳ [Track 3] Navigating to Link Protector...")
         await page.goto(linkmake_url, timeout=40000, wait_until="domcontentloaded")
-        await asyncio.sleep(4) # ⏳ Link protector takes time to render
+        await asyncio.sleep(4)
 
         protector_links = await page.query_selector_all('.dlink a')
         if not protector_links:
@@ -844,23 +849,39 @@ async def extract_filmyfly(detail_url: str):
                     elif 'episodes' in text_lower or 'zip' in text_lower: q_key = 'pack'
 
                     if q_key and q_key not in quality_links:
-                        quality_links[q_key] = href
+                        # if MediaFire direct link, mark it for fast-lane processing in Layer 3, else treat as gateway
+                        if 'mediafire.com' in href:
+                            quality_links[q_key] = {"type": "direct_mediafire", "url": href}
+                        else:
+                            quality_links[q_key] = {"type": "gateway", "url": href}
             except: continue
 
         if not quality_links:
-            # Pata lag jayega ki Cloudflare ne HF ko fake page dikhaya hai kya
             print(f"❌ [Track 4] FAIL: No quality buttons found! Page Title: {await page.title()}")
             return final_links
 
-        print(f"✅ [Track 5] Found {len(quality_links)} Quality Links! Bypassing JS Tokens...")
+        print(f"✅ [Track 5] Found {len(quality_links)} Quality Links! Scanning...")
 
-        for quality, target_url in quality_links.items():
+        # ==========================================
+        # LAYER 3: Smart Universal Gateway Logic (Old + New)
+        # ==========================================
+        for quality, link_data in quality_links.items():
             try:
-                print(f"   ⏳ [Track 6] Processing Quality: {quality.upper()}...")
+                # MediaFire direct links are processed immediately
+                if link_data["type"] == "direct_mediafire":
+                    final_links[f"Pack [{quality.upper()}] ➔ ⚡ MediaFire"] = link_data["url"]
+                    print(f"      ✅ Success (Bypassed Layer 3): MediaFire")
+                    continue
+
+                target_url = link_data["url"]
+                print(f"   ⏳ [Track 6] Processing Gateway for Quality: {quality.upper()}...")
+
+                # Networkidle for JS tokens
                 await page.goto(target_url, timeout=50000, wait_until="networkidle")
                 await asyncio.sleep(2)
 
-                all_buttons = await page.query_selector_all('.container a')
+                # Universal Button Extractor with Smart Filtering Logic
+                all_buttons = await page.query_selector_all('.container a, a.button')
                 direct_links = {}
                 fallback_links = {}
 
@@ -871,8 +892,15 @@ async def extract_filmyfly(detail_url: str):
                     if not text or not href: continue
                     text_lower = text.strip().lower()
 
+                    # LOGIC 1: Fast Directs (Cloud Direct, Fast Direct, FDownload) - Top Priority
                     if 'cloud direct' in text_lower or 'fast direct' in text_lower or 'fdownload' in href:
                         direct_links['⚡ Fast Direct'] = href
+
+                    # LOGIC 2: G-Drive Directs (GPDL, G-Drive Direct) - Medium Priority
+                    elif 'gpdl.php' in href or ('download' in text_lower and ('gb' in text_lower or 'mb' in text_lower)):
+                        direct_links['⚡ G-Drive Direct'] = href
+
+                    #  LOGIC 3: Premium & Fallbacks
                     elif 'pixeldrain' in text_lower:
                         direct_links['🔥 PixelDrain'] = href
                     elif 'gofile' in text_lower:
@@ -882,6 +910,7 @@ async def extract_filmyfly(detail_url: str):
                     elif 'buzz' in text_lower:
                         fallback_links['🐌 Buzz Backup'] = href
 
+                #  SMART UI FILTER
                 if direct_links:
                     best_name = list(direct_links.keys())[0]
                     final_links[f"Pack [{quality.upper()}] ➔ {best_name}"] = direct_links[best_name]
