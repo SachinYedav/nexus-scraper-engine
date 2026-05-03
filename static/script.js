@@ -1,3 +1,5 @@
+const API_BASE_URL = "https://hyperdev5-nexus-api.hf.space";
+
 /* ====================================
    Module Chips Logic (Navigation)
 ======================================*/
@@ -109,7 +111,7 @@ function performSearch() {
 
         settingsDropdown.classList.add('hidden');
 
-        const apiUrl = `/search?q=${encodeURIComponent(query)}&limit=${limit}&sources=${selectedSources}`;
+        const apiUrl = `${API_BASE_URL}/search?q=${encodeURIComponent(query)}&limit=${limit}&sources=${selectedSources}`;
         const eventSource = new EventSource(apiUrl);
 
         eventSource.onmessage = function (event) {
@@ -195,7 +197,7 @@ async function extractLinks(event, detailUrl, source, id) {
     statusText.innerHTML = `<div class="spinner"></div> Bypassing ${source}...`;
 
     try {
-        const response = await fetch(`/extract`, {
+        const response = await fetch(`${API_BASE_URL}/extract`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: detailUrl, source: source, mode: "packs" })
@@ -347,7 +349,7 @@ async function loadEpisodes(url, source) {
     let htmlContent = '';
 
     try {
-        const response = await fetch('/extract', {
+        const response = await fetch(`${API_BASE_URL}/extract`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: url, source: source, mode: "episodes" })
