@@ -726,8 +726,10 @@ async def search_filmyfly(query: str, limit: int):
 
     print(f"🔍 [FilmyFly] Searching for: '{query}'...")
 
-    browser = await get_browser() # Using Auto-Heal Browser Pool
+    browser = await get_browser()
     page = await browser.new_page()
+
+    # AD-BLOCKER INJECTED TO PREVENT FREEZES
     await page.route("**/*", block_ads_and_popups)
 
     try:
@@ -737,7 +739,7 @@ async def search_filmyfly(query: str, limit: int):
         items = await page.query_selector_all('div:has(a[href*="/page-download/"])')
 
         for item in items:
-            try: # Crash-proofing each item extraction to ensure maximum results even if some items are malformed
+            try:
                 raw_title = await item.evaluate("el => el.innerText || el.textContent")
                 clean_title = ' '.join(raw_title.replace('\n', ' ').split()).strip()
 
@@ -752,7 +754,7 @@ async def search_filmyfly(query: str, limit: int):
                 }''')
 
                 if raw_img_url:
-                    # 🎯 THE CDN HACK: Force the server to give us a 350x500 HD image instead of 120x130
+                    # 🎯 The CDN Hack for High Quality Images
                     import re
                     hq_img_url = re.sub(r'/\d+:\d+/', '/350:500/', raw_img_url)
                     img_url = urllib.parse.urljoin(BASE_URL_FILMYFLY, hq_img_url)
@@ -768,9 +770,8 @@ async def search_filmyfly(query: str, limit: int):
                             "source": "filmyfly"
                         })
 
-                if len(results) >= limit: break # fetch Top 4 results
+                if len(results) >= limit: break
             except Exception as item_err:
-                print(f"⚠️ [FilmyFly] Skipped an item due to error: {item_err}")
                 continue
 
     except Exception as e:
@@ -784,75 +785,116 @@ async def extract_filmyfly(detail_url: str):
     print(f"🎬 [FilmyFly] Deep Extraction Started for: {detail_url}")
     final_links = {}
 
-    browser = await get_browser() # Using Auto-Heal Browser Pool
+    browser = await get_browser()
     context = await browser.new_context()
     page = await context.new_page()
+
+    #  AD-BLOCKER INJECTED
     await page.route("**/*", block_ads_and_popups)
 
     try:
-        # Layer 2: Master Button (Try-Except block with Timeout fallback)
+        # ==========================================
+        # LAYER 2: Master Download Button
+        # ==========================================
         await page.goto(detail_url, timeout=40000, wait_until="domcontentloaded")
         await asyncio.sleep(2)
 
         all_links = await page.query_selector_all('a')
         linkmake_url = None
+
         for link in all_links:
             text = await link.evaluate("el => el.innerText || el.textContent")
-            if text:
-                text_lower = text.strip().lower()
-                # Bulletproof Condition
-                if 'download' in text_lower and ('480p' in text_lower or '1080p' in text_lower or '720p' in text_lower):
-                    href = await link.get_attribute('href')
-                    if href:
-                        linkmake_url = urllib.parse.urljoin(BASE_URL_FILMYFLY, href)
-                        break
+            if not text: continue
+
+            text_lower = text.strip().lower()
+            href = await link.get_attribute('href')
+
+            # 🎯 Bulletproof Matcher for Both Movies & Web Series
+            if href and 'download' in text_lower:
+                if any(res in text_lower for res in ['480p', '720p', '1080p', '2160p', 'episodes', 'zip', 'pack']):
+                    linkmake_url = urllib.parse.urljoin(BASE_URL_FILMYFLY, href)
+                    break
 
         if not linkmake_url:
             print("❌ [FilmyFly] Master Download button not found!")
             return final_links
 
-        # Layer 2.5: Link Protector (Get Quality Buttons safely)
+        # ==========================================
+        # LAYER 2.5: Link Protector & Quality Extraction
+        # ==========================================
         await page.goto(linkmake_url, timeout=40000, wait_until="domcontentloaded")
         await asyncio.sleep(2)
 
-        protector_links = await page.query_selector_all('a')
+        protector_links = await page.query_selector_all('.dlink a')
+        if not protector_links:
+            protector_links = await page.query_selector_all('a')
+
         quality_links = {}
         for link in protector_links:
             try:
                 href = await link.get_attribute('href')
                 text = await link.evaluate("el => (el.innerText || el.textContent)")
+
                 if href and text:
                     text_lower = text.strip().lower()
-                    if 'download' in text_lower and ('mb' in text_lower or 'gb' in text_lower):
-                        q_key = '2160p' if '2160p' in text_lower else '1080p' if '1080p' in text_lower else '720p' if '720p' in text_lower else '480p' if '480p' in text_lower else None
-                        if q_key and q_key not in quality_links:
-                            quality_links[q_key] = href
+
+                    q_key = None
+                    if '2160p' in text_lower or '4k' in text_lower: q_key = '2160p'
+                    elif '1080p' in text_lower: q_key = '1080p'
+                    elif '720p' in text_lower: q_key = '720p'
+                    elif '480p' in text_lower: q_key = '480p'
+                    elif 'episodes' in text_lower or 'zip' in text_lower: q_key = 'pack'
+
+                    if q_key and q_key not in quality_links:
+                        quality_links[q_key] = href
             except: continue
 
-        # Layer 3: Direct Fast Links (Crash-Proof loop)
+        # ==========================================
+        # LAYER 3: JS Token Bypass & Smart Fallback Filter
+        # ==========================================
         for quality, target_url in quality_links.items():
             try:
-                await page.goto(target_url, timeout=40000, wait_until="domcontentloaded")
+                # 'networkidle' is CRITICAL here for the JS token generation
+                await page.goto(target_url, timeout=50000, wait_until="networkidle")
                 await asyncio.sleep(1)
 
                 all_buttons = await page.query_selector_all('.container a')
+
+                direct_links = {}
+                fallback_links = {}
+
                 for btn in all_buttons:
                     text = await btn.evaluate("el => (el.innerText || el.textContent)")
-                    href = await btn.get_attribute('href')
-                    if not text or not href: continue
+                    href = await btn.evaluate("el => el.href") # Execute JS and get token URL
 
+                    if not text or not href: continue
                     text_lower = text.strip().lower()
 
-                    # Exact Match for Fast Direct or Fallback to SlowCloud
-                    if 'fast direct' in text_lower or 'fdownload.php' in href:
-                        final_links[quality] = href
-                        break # Found best link, move to next quality
-                    elif 'slowcloud' in text_lower and quality not in final_links:
-                        final_links[quality] = href
+                    # Categorize Links
+                    if 'cloud direct' in text_lower or 'fast direct' in text_lower or 'fdownload' in href:
+                        direct_links['⚡ Fast Direct'] = href
+                    elif 'pixeldrain' in text_lower:
+                        direct_links['🔥 PixelDrain'] = href
+                    elif 'gofile' in text_lower:
+                        fallback_links['📂 GoFile'] = href
+                    elif 'hubcloud' in text_lower:
+                        fallback_links['☁️ HubCloud'] = href
+                    elif 'buzz' in text_lower:
+                        fallback_links['🐌 Buzz Backup'] = href
+
+                # 🧠 SMART UI FILTER
+                if direct_links:
+                    # Give only the best direct link, ignore clutter
+                    best_name = list(direct_links.keys())[0]
+                    final_links[f"Pack [{quality.upper()}] ➔ {best_name}"] = direct_links[best_name]
+                elif fallback_links:
+                    # Only show fallbacks if direct fails
+                    best_name = list(fallback_links.keys())[0]
+                    final_links[f"Pack [{quality.upper()}] ➔ {best_name}"] = fallback_links[best_name]
 
             except Exception as q_err:
                 print(f"⚠️ [FilmyFly] Skipped {quality} extraction due to error: {q_err}")
-                continue # Skip broken quality, but continue extracting others!
+                continue
 
     except Exception as e:
         print(f"❌ [FilmyFly] Extraction Error: {e}")
