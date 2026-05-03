@@ -782,22 +782,22 @@ async def search_filmyfly(query: str, limit: int):
     return results
 
 async def extract_filmyfly(detail_url: str):
-    print(f"🎬 [FilmyFly] Deep Extraction Started for: {detail_url}")
+    print(f"\n🎬 [FilmyFly] Deep Extraction Started for: {detail_url}")
     final_links = {}
 
     browser = await get_browser()
-    context = await browser.new_context()
+    # 🛡️ THE FIX: Fake Windows PC Identity (User-Agent) to bypass Cloudflare
+    context = await browser.new_context(
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
     page = await context.new_page()
 
-    #  AD-BLOCKER INJECTED
     await page.route("**/*", block_ads_and_popups)
 
     try:
-        # ==========================================
-        # LAYER 2: Master Download Button
-        # ==========================================
+        print("⏳ [Track 1] Loading Main Detail Page...")
         await page.goto(detail_url, timeout=40000, wait_until="domcontentloaded")
-        await asyncio.sleep(2)
+        await asyncio.sleep(3) # ⏳ Thoda extra time diya slow server ke liye
 
         all_links = await page.query_selector_all('a')
         linkmake_url = None
@@ -809,24 +809,23 @@ async def extract_filmyfly(detail_url: str):
             text_lower = text.strip().lower()
             href = await link.get_attribute('href')
 
-            # 🎯 Bulletproof Matcher for Both Movies & Web Series
             if href and 'download' in text_lower:
                 if any(res in text_lower for res in ['480p', '720p', '1080p', '2160p', 'episodes', 'zip', 'pack']):
                     linkmake_url = urllib.parse.urljoin(BASE_URL_FILMYFLY, href)
+                    print(f"✅ [Track 2] Master Link Found: {linkmake_url}")
                     break
 
         if not linkmake_url:
-            print("❌ [FilmyFly] Master Download button not found!")
+            print("❌ [Track 2] FAIL: Master Download button not found on HF!")
             return final_links
 
-        # ==========================================
-        # LAYER 2.5: Link Protector & Quality Extraction
-        # ==========================================
+        print("⏳ [Track 3] Navigating to Link Protector...")
         await page.goto(linkmake_url, timeout=40000, wait_until="domcontentloaded")
-        await asyncio.sleep(2)
+        await asyncio.sleep(4) # ⏳ Link protector takes time to render
 
         protector_links = await page.query_selector_all('.dlink a')
         if not protector_links:
+            print("⚠️ [Track 4] '.dlink a' not found! Falling back to 'a' tags...")
             protector_links = await page.query_selector_all('a')
 
         quality_links = {}
@@ -837,7 +836,6 @@ async def extract_filmyfly(detail_url: str):
 
                 if href and text:
                     text_lower = text.strip().lower()
-
                     q_key = None
                     if '2160p' in text_lower or '4k' in text_lower: q_key = '2160p'
                     elif '1080p' in text_lower: q_key = '1080p'
@@ -849,28 +847,30 @@ async def extract_filmyfly(detail_url: str):
                         quality_links[q_key] = href
             except: continue
 
-        # ==========================================
-        # LAYER 3: JS Token Bypass & Smart Fallback Filter
-        # ==========================================
+        if not quality_links:
+            # Pata lag jayega ki Cloudflare ne HF ko fake page dikhaya hai kya
+            print(f"❌ [Track 4] FAIL: No quality buttons found! Page Title: {await page.title()}")
+            return final_links
+
+        print(f"✅ [Track 5] Found {len(quality_links)} Quality Links! Bypassing JS Tokens...")
+
         for quality, target_url in quality_links.items():
             try:
-                # 'networkidle' is CRITICAL here for the JS token generation
+                print(f"   ⏳ [Track 6] Processing Quality: {quality.upper()}...")
                 await page.goto(target_url, timeout=50000, wait_until="networkidle")
-                await asyncio.sleep(1)
+                await asyncio.sleep(2)
 
                 all_buttons = await page.query_selector_all('.container a')
-
                 direct_links = {}
                 fallback_links = {}
 
                 for btn in all_buttons:
                     text = await btn.evaluate("el => (el.innerText || el.textContent)")
-                    href = await btn.evaluate("el => el.href") # Execute JS and get token URL
+                    href = await btn.evaluate("el => el.href")
 
                     if not text or not href: continue
                     text_lower = text.strip().lower()
 
-                    # Categorize Links
                     if 'cloud direct' in text_lower or 'fast direct' in text_lower or 'fdownload' in href:
                         direct_links['⚡ Fast Direct'] = href
                     elif 'pixeldrain' in text_lower:
@@ -882,24 +882,26 @@ async def extract_filmyfly(detail_url: str):
                     elif 'buzz' in text_lower:
                         fallback_links['🐌 Buzz Backup'] = href
 
-                # 🧠 SMART UI FILTER
                 if direct_links:
-                    # Give only the best direct link, ignore clutter
                     best_name = list(direct_links.keys())[0]
                     final_links[f"Pack [{quality.upper()}] ➔ {best_name}"] = direct_links[best_name]
+                    print(f"      ✅ Success: {best_name}")
                 elif fallback_links:
-                    # Only show fallbacks if direct fails
                     best_name = list(fallback_links.keys())[0]
                     final_links[f"Pack [{quality.upper()}] ➔ {best_name}"] = fallback_links[best_name]
+                    print(f"      ⚠️ Fallback: {best_name}")
+                else:
+                    print(f"      ❌ Failed to find direct/fallback buttons for {quality}.")
 
             except Exception as q_err:
-                print(f"⚠️ [FilmyFly] Skipped {quality} extraction due to error: {q_err}")
+                print(f"⚠️ [Track 6] Skipped {quality} due to error: {q_err}")
                 continue
 
     except Exception as e:
-        print(f"❌ [FilmyFly] Extraction Error: {e}")
+        print(f"❌ [FilmyFly] Master Extraction Error: {e}")
     finally:
         await context.close()
+        print(f"🏁 [Track 7] Extraction complete. Sending {len(final_links)} links to UI.")
 
     return final_links
 
