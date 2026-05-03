@@ -563,6 +563,7 @@ async def search_filmyparda(query: str, limit: int):
     try:
         browser = await get_browser()
         page = await browser.new_page()
+        await page.route("**/*", block_ads_and_popups)
 
         await page.goto(target_url, timeout=40000, wait_until="domcontentloaded")
         await asyncio.sleep(2)
@@ -727,6 +728,7 @@ async def search_filmyfly(query: str, limit: int):
 
     browser = await get_browser() # Using Auto-Heal Browser Pool
     page = await browser.new_page()
+    await page.route("**/*", block_ads_and_popups)
 
     try:
         await page.goto(target_url, timeout=40000, wait_until="domcontentloaded")
@@ -785,6 +787,7 @@ async def extract_filmyfly(detail_url: str):
     browser = await get_browser() # Using Auto-Heal Browser Pool
     context = await browser.new_context()
     page = await context.new_page()
+    await page.route("**/*", block_ads_and_popups)
 
     try:
         # Layer 2: Master Button (Try-Except block with Timeout fallback)
@@ -795,11 +798,14 @@ async def extract_filmyfly(detail_url: str):
         linkmake_url = None
         for link in all_links:
             text = await link.evaluate("el => el.innerText || el.textContent")
-            if text and 'Download' in text and '480p' in text and '1080p' in text:
-                href = await link.get_attribute('href')
-                if href:
-                    linkmake_url = urllib.parse.urljoin(BASE_URL_FILMYFLY, href)
-                    break
+            if text:
+                text_lower = text.strip().lower()
+                # Bulletproof Condition
+                if 'download' in text_lower and ('480p' in text_lower or '1080p' in text_lower or '720p' in text_lower):
+                    href = await link.get_attribute('href')
+                    if href:
+                        linkmake_url = urllib.parse.urljoin(BASE_URL_FILMYFLY, href)
+                        break
 
         if not linkmake_url:
             print("❌ [FilmyFly] Master Download button not found!")
