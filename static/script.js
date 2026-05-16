@@ -11,7 +11,7 @@ let msgTimeout;
 chips.forEach(chip => {
     chip.addEventListener('click', (e) => {
         // Remove active class from all
-        chips.forEach(c => c.classList.remove('active'));
+        chips.forEach(c => c.classList.remove('active'));git add .
         // Add active to clicked
         e.target.classList.add('active');
 

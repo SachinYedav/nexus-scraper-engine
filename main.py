@@ -717,7 +717,7 @@ async def extract_filmyparda(detail_url: str):
 # ==========================================
 # 🟢 FILMYFLY SCRAPING ENGINE
 # ==========================================
-BASE_URL_FILMYFLY = "https://1filmyfly.dad"
+BASE_URL_FILMYFLY = "https://filmyfly.camp"
 
 async def search_filmyfly(query: str, limit: int):
     search_term = query.replace(" ", "+")
